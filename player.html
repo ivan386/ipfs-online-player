@@ -1,0 +1,74 @@
+<html>
+	<head>
+		<style>
+			body{
+				margin: 0;
+				overflow: hidden;
+			}
+			video{
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+		</style>
+	</head>
+	<body>
+		<video crossOrigin="anonimous" preload="metadata" controls="controls"></video>
+		<script>
+			var gateways
+			if (document.location.hash.lastIndexOf("/ipfs/", 1) == 1 || document.location.hash.lastIndexOf("/ipns/", 1) == 1)
+				fetch("https://ipfs.github.io/public-gateway-checker/gateways.json")
+				.then((res) => res.json())
+				.then((json) => {
+					gateways = json;
+					gateways.sort(function(a, b){return get_xor(a) - get_xor(b)})
+					load_video(document.location.hash.substr(1));
+				})
+
+			function get_xor(string)
+			{
+				for (var i = string.length-1, c = 0; i >= 0; i--)
+					c = c ^ string.charCodeAt(i);
+				
+				return c;
+			}
+
+			function selectgateway(ipfs_path)
+			{
+				var hash_xor = get_xor(ipfs_path);
+				var delta = Math.abs(get_xor(gateways[0]) - hash_xor);
+				var index = 0;
+				for (var i = gateways.length-1; i > 0; i--)
+				{
+					var new_delta = Math.abs(get_xor(gateways[i]) - hash_xor);
+					if ( new_delta < delta )
+					{
+						index = i;
+						delta = new_delta;
+					}
+				}
+				
+				return index;
+			}
+
+			function load_video(ipfs_path)
+			{
+				var shift = selectgateway(ipfs_path);
+				for (i = 0; i < gateways.length; i++)
+				{
+					var index = (i + shift) % gateways.length;
+					if (gateways[index].indexOf("/ipfs/:hash") > 0)
+						fetch(gateways[index].replace("/ipfs/:hash", ipfs_path), {method: 'HEAD', mode: 'cors', credentials: 'omit'})
+						.then(res =>{
+							if (res.ok){
+								var video = document.querySelector("video");
+								var source = document.createElement("source");
+								source.src = res.url;
+								video.appendChild(source);
+							}
+						})
+				}
+			}
+		</script>
+	</body>
+</html>
